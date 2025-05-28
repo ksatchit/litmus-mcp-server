@@ -92,11 +92,11 @@
 
 ## Features:
 
-✅ 17 comprehensive MCP tools
-✅ Complete GraphQL integration
-✅ All experiment management functions
-✅ Infrastructure operations
-✅ Environment organization
-✅ Resilience probes
-✅ Statistics and analytics
-✅ Identical API surface to TypeScript version
+- ✅ 17 comprehensive MCP tools
+- ✅ Complete GraphQL integration
+- ✅ All experiment management functions
+- ✅ Infrastructure operations
+- ✅ Environment organization
+- ✅ Resilience probes
+- ✅ Statistics and analytics
+- ✅ Identical API surface to TypeScript version
