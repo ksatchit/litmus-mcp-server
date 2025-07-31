@@ -1,939 +1,4 @@
-	formattedInfras := make([]map[string]interface{}, len(infras))
-	for i, infra := range infras {
-		infraMap := infra.(map[string]interface{})
-
-		formattedInfras[i] = map[string]interface{}{
-			"id":          infraMap["infraID"],
-			"name":        infraMap["name"],
-			"description": infraMap["description"],
-			"environment": infraMap["environmentID"],
-			"platform":    infraMap["platformName"],
-			"active":      infraMap["isActive"],
-			"confirmed":   infraMap["isInfraConfirmed"],
-			"scope":       infraMap["infraScope"],
-			"namespace":   infraMap["infraNamespace"],
-			"version":     infraMap["version"],
-			"statistics": map[string]interface{}{
-				"experiments": infraMap["noOfExperiments"],
-				"runs":        infraMap["noOfExperimentRuns"],
-			},
-			"tags":         infraMap["tags"],
-			"updateStatus": infraMap["updateStatus"],
-			"createdBy":    getNestedString(infraMap, "createdBy", "username"),
-			"createdAt":    infraMap["createdAt"],
-			"updatedAt":    infraMap["updatedAt"],
-		}
-	}
-
-	response := map[string]interface{}{
-		"summary":              fmt.Sprintf("Found %v chaos infrastructures", listInfras["totalNoOfInfras"]),
-		"totalInfrastructures": listInfras["totalNoOfInfras"],
-		"infrastructures":      formattedInfras,
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) getInfrastructureDetails(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	infraID := getStringFromArgs(args, "infraId", "")
-	if infraID == "" {
-		return nil, fmt.Errorf("infraId is required")
-	}
-
-	query := `
-		query GetInfra($projectID: ID!, $infraID: String!) {
-			getInfra(projectID: $projectID, infraID: $infraID) {
-				projectID
-				infraID
-				name
-				description
-				environmentID
-				platformName
-				isActive
-				isInfraConfirmed
-				infraScope
-				infraNamespace
-				serviceAccount
-				infraNsExists
-				infraSaExists
-				version
-				token
-				noOfExperiments
-				noOfExperimentRuns
-				lastExperimentTimestamp
-				startTime
-				tags
-				createdAt
-				updatedAt
-				createdBy {
-					username
-					email
-				}
-				updatedBy {
-					username
-					email
-				}
-				updateStatus
-			}
-		}
-	`
-
-	variables := map[string]interface{}{
-		"infraID": infraID,
-	}
-
-	data, err := s.graphqlRequest(ctx, query, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	infra := result["getInfra"].(map[string]interface{})
-
-	var manifest interface{} = nil
-	if getBoolFromArgs(args, "includeManifest", false) {
-		manifestQuery := `
-			query GetInfraManifest(
-				$infraID: ID!,
-				$upgrade: Boolean!,
-				$projectID: ID!
-			) {
-				getInfraManifest(
-					infraID: $infraID,
-					upgrade: $upgrade,
-					projectID: $projectID
-				)
-			}
-		`
-
-		manifestVars := map[string]interface{}{
-			"infraID": infraID,
-			"upgrade": false,
-		}
-
-		manifestData, manifestErr := s.graphqlRequest(ctx, manifestQuery, manifestVars)
-		if manifestErr == nil {
-			var manifestResult map[string]interface{}
-			if json.Unmarshal(manifestData, &manifestResult) == nil {
-				manifest = manifestResult["getInfraManifest"]
-			}
-		}
-		if manifest == nil {
-			manifest = "Manifest not available"
-		}
-	}
-
-	response := map[string]interface{}{
-		"infrastructure": map[string]interface{}{
-			"id":          infra["infraID"],
-			"name":        infra["name"],
-			"description": infra["description"],
-			"environment": infra["environmentID"],
-			"platform":    infra["platformName"],
-			"active":      infra["isActive"],
-			"confirmed":   infra["isInfraConfirmed"],
-			"scope":       infra["infraScope"],
-			"namespace":   infra["infraNamespace"],
-			"serviceAccount": infra["serviceAccount"],
-			"namespaceExists": infra["infraNsExists"],
-			"serviceAccountExists": infra["infraSaExists"],
-			"version":     infra["version"],
-			"statistics": map[string]interface{}{
-				"experiments":     infra["noOfExperiments"],
-				"runs":           infra["noOfExperimentRuns"],
-				"lastExperiment": infra["lastExperimentTimestamp"],
-			},
-			"startTime":     infra["startTime"],
-			"tags":          infra["tags"],
-			"updateStatus":  infra["updateStatus"],
-			"createdBy":     getNestedString(infra, "createdBy", "username"),
-			"updatedBy":     getNestedString(infra, "updatedBy", "username"),
-			"createdAt":     infra["createdAt"],
-			"updatedAt":     infra["updatedAt"],
-			"manifest":      manifest,
-		},
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) listEnvironments(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	query := `
-		query ListEnvironments($projectID: ID!, $request: ListEnvironmentRequest) {
-			listEnvironments(projectID: $projectID, request: $request) {
-				totalNoOfEnvironments
-				environments {
-					projectID
-					environmentID
-					name
-					description
-					type
-					tags
-					infraIDs
-					createdAt
-					updatedAt
-					createdBy {
-						username
-					}
-					updatedBy {
-						username
-					}
-				}
-			}
-		}
-	`
-
-	request := map[string]interface{}{}
-
-	if envType := getStringFromArgs(args, "type", ""); envType != "" {
-		request["filter"] = map[string]interface{}{
-			"type": envType,
-		}
-	}
-
-	variables := map[string]interface{}{}
-	if len(request) > 0 {
-		variables["request"] = request
-	}
-
-	data, err := s.graphqlRequest(ctx, query, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	listEnvs := result["listEnvironments"].(map[string]interface{})
-	environments := listEnvs["environments"].([]interface{})
-
-	formattedEnvs := make([]map[string]interface{}, len(environments))
-	for i, env := range environments {
-		envMap := env.(map[string]interface{})
-
-		infraCount := 0
-		var infraIDs []interface{}
-		if infraIDsRaw := envMap["infraIDs"]; infraIDsRaw != nil {
-			infraIDs = infraIDsRaw.([]interface{})
-			infraCount = len(infraIDs)
-		}
-
-		formattedEnvs[i] = map[string]interface{}{
-			"id":                    envMap["environmentID"],
-			"name":                  envMap["name"],
-			"description":           envMap["description"],
-			"type":                  envMap["type"],
-			"tags":                  envMap["tags"],
-			"infrastructureCount":   infraCount,
-			"infrastructureIds":     infraIDs,
-			"createdBy":             getNestedString(envMap, "createdBy", "username"),
-			"updatedBy":             getNestedString(envMap, "updatedBy", "username"),
-			"createdAt":             envMap["createdAt"],
-			"updatedAt":             envMap["updatedAt"],
-		}
-	}
-
-	response := map[string]interface{}{
-		"summary":           fmt.Sprintf("Found %v environments", listEnvs["totalNoOfEnvironments"]),
-		"totalEnvironments": listEnvs["totalNoOfEnvironments"],
-		"environments":      formattedEnvs,
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) createEnvironment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	name := getStringFromArgs(args, "name", "")
-	if name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-
-	envType := getStringFromArgs(args, "type", "")
-	if envType == "" {
-		return nil, fmt.Errorf("type is required")
-	}
-
-	mutation := `
-		mutation CreateEnvironment($projectID: ID!, $request: CreateEnvironmentRequest) {
-			createEnvironment(projectID: $projectID, request: $request) {
-				projectID
-				environmentID
-				name
-				description
-				type
-				tags
-				createdAt
-				createdBy {
-					username
-				}
-			}
-		}
-	`
-
-	tags := []string{}
-	if tagsSlice := getSliceFromArgs(args, "tags"); tagsSlice != nil {
-		tags = make([]string, len(tagsSlice))
-		for i, tag := range tagsSlice {
-			tags[i] = fmt.Sprintf("%v", tag)
-		}
-	}
-
-	request := map[string]interface{}{
-		"environmentID": strings.ToLower(strings.ReplaceAll(name, " ", "-")),
-		"name":          name,
-		"description":   getStringFromArgs(args, "description", ""),
-		"type":          envType,
-		"tags":          tags,
-	}
-
-	variables := map[string]interface{}{
-		"request": request,
-	}
-
-	data, err := s.graphqlRequest(ctx, mutation, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	createResult := result["createEnvironment"].(map[string]interface{})
-
-	response := map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("Environment '%s' created successfully", name),
-		"environment": map[string]interface{}{
-			"id":          createResult["environmentID"],
-			"name":        createResult["name"],
-			"description": createResult["description"],
-			"type":        createResult["type"],
-			"tags":        createResult["tags"],
-			"createdBy":   getNestedString(createResult, "createdBy", "username"),
-			"createdAt":   createResult["createdAt"],
-		},
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) listResilienceProbes(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	query := `
-		query ListProbes(
-			$projectID: ID!,
-			$infrastructureType: InfrastructureType,
-			$probeNames: [ID!],
-			$filter: ProbeFilterInput
-		) {
-			listProbes(
-				projectID: $projectID,
-				infrastructureType: $infrastructureType,
-				probeNames: $probeNames,
-				filter: $filter
-			) {
-				projectID
-				name
-				description
-				type
-				infrastructureType
-				tags
-				referencedBy
-				updatedAt
-				createdAt
-				createdBy {
-					username
-				}
-				updatedBy {
-					username
-				}
-			}
-		}
-	`
-
-	variables := map[string]interface{}{}
-
-	if probeType := getStringFromArgs(args, "type", ""); probeType != "" {
-		variables["filter"] = map[string]interface{}{
-			"type": []string{probeType},
-		}
-	}
-
-	data, err := s.graphqlRequest(ctx, query, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	probes := result["listProbes"].([]interface{})
-
-	formattedProbes := make([]map[string]interface{}, len(probes))
-	for i, probe := range probes {
-		probeMap := probe.(map[string]interface{})
-
-		formattedProbes[i] = map[string]interface{}{
-			"name":               probeMap["name"],
-			"description":        probeMap["description"],
-			"type":               probeMap["type"],
-			"infrastructureType": probeMap["infrastructureType"],
-			"tags":               probeMap["tags"],
-			"referencedBy":       probeMap["referencedBy"],
-			"createdBy":          getNestedString(probeMap, "createdBy", "username"),
-			"updatedBy":          getNestedString(probeMap, "updatedBy", "username"),
-			"createdAt":          probeMap["createdAt"],
-			"updatedAt":          probeMap["updatedAt"],
-		}
-	}
-
-	response := map[string]interface{}{
-		"summary":     fmt.Sprintf("Found %d resilience probes", len(probes)),
-		"totalProbes": len(probes),
-		"probes":      formattedProbes,
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) createResilienceProbe(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	name := getStringFromArgs(args, "name", "")
-	if name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-
-	probeType := getStringFromArgs(args, "type", "")
-	if probeType == "" {
-		return nil, fmt.Errorf("type is required")
-	}
-
-	properties := getMapFromArgs(args, "properties")
-	if properties == nil {
-		return nil, fmt.Errorf("properties are required")
-	}
-
-	mutation := `
-		mutation AddProbe($request: ProbeRequest!, $projectID: ID!) {
-			addProbe(request: $request, projectID: $projectID) {
-				projectID
-				name
-				description
-				type
-				infrastructureType
-				tags
-				createdAt
-				createdBy {
-					username
-				}
-			}
-		}
-	`
-
-	tags := []string{}
-	if tagsSlice := getSliceFromArgs(args, "tags"); tagsSlice != nil {
-		tags = make([]string, len(tagsSlice))
-		for i, tag := range tagsSlice {
-			tags[i] = fmt.Sprintf("%v", tag)
-		}
-	}
-
-	request := map[string]interface{}{
-		"name":               name,
-		"description":        getStringFromArgs(args, "description", ""),
-		"type":               probeType,
-		"infrastructureType": "Kubernetes",
-		"tags":               tags,
-	}
-
-	// Add type-specific properties
-	switch probeType {
-	case "httpProbe":
-		method := strings.ToLower(getStringFromArgs(properties, "method", "get"))
-		methodConfig := map[string]interface{}{
-			"criteria":     "==",
-			"responseCode": "200",
-		}
-
-		request["kubernetesHTTPProperties"] = map[string]interface{}{
-			"url": getStringFromArgs(properties, "url", ""),
-			"method": map[string]interface{}{
-				method: methodConfig,
-			},
-			"probeTimeout":        getStringFromArgs(properties, "timeout", "5s"),
-			"interval":            getStringFromArgs(properties, "interval", "2s"),
-			"retry":               3,
-			"attempt":             1,
-			"insecureSkipVerify":  false,
-		}
-
-	case "cmdProbe":
-		request["kubernetesCMDProperties"] = map[string]interface{}{
-			"command":      getStringFromArgs(properties, "command", ""),
-			"probeTimeout": getStringFromArgs(properties, "timeout", "5s"),
-			"interval":     getStringFromArgs(properties, "interval", "2s"),
-			"retry":        3,
-			"attempt":      1,
-			"comparator": map[string]interface{}{
-				"type":     "string",
-				"criteria": "==",
-				"value":    "success",
-			},
-		}
-
-	case "k8sProbe":
-		request["k8sProperties"] = map[string]interface{}{
-			"group":        "",
-			"version":      "v1",
-			"resource":     getStringFromArgs(properties, "resource", ""),
-			"operation":    "present",
-			"probeTimeout": getStringFromArgs(properties, "timeout", "5s"),
-			"interval":     getStringFromArgs(properties, "interval", "2s"),
-			"retry":        3,
-			"attempt":      1,
-		}
-
-	case "promProbe":
-		request["promProperties"] = map[string]interface{}{
-			"endpoint":     getStringFromArgs(properties, "endpoint", ""),
-			"query":        getStringFromArgs(properties, "query", ""),
-			"probeTimeout": getStringFromArgs(properties, "timeout", "5s"),
-			"interval":     getStringFromArgs(properties, "interval", "2s"),
-			"retry":        3,
-			"attempt":      1,
-			"comparator": map[string]interface{}{
-				"type":     "float",
-				"criteria": ">=",
-				"value":    "0",
-			},
-		}
-	}
-
-	variables := map[string]interface{}{
-		"request": request,
-	}
-
-	data, err := s.graphqlRequest(ctx, mutation, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	createResult := result["addProbe"].(map[string]interface{})
-
-	response := map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("Resilience probe '%s' created successfully", name),
-		"probe": map[string]interface{}{
-			"name":               createResult["name"],
-			"description":        createResult["description"],
-			"type":               createResult["type"],
-			"infrastructureType": createResult["infrastructureType"],
-			"tags":               createResult["tags"],
-			"createdBy":          getNestedString(createResult, "createdBy", "username"),
-			"createdAt":          createResult["createdAt"],
-		},
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) listChaosHubs(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	query := `
-		query ListChaosHub($projectID: ID!, $request: ListChaosHubRequest) {
-			listChaosHub(projectID: $projectID, request: $request) {
-				id
-				name
-				description
-				repoURL
-				repoBranch
-				remoteHub
-				hubType
-				isPrivate
-				isAvailable
-				totalFaults
-				totalExperiments
-				tags
-				lastSyncedAt
-				createdAt
-				updatedAt
-				createdBy {
-					username
-				}
-				updatedBy {
-					username
-				}
-			}
-		}
-	`
-
-	request := map[string]interface{}{}
-
-	if hubType := getStringFromArgs(args, "hubType", ""); hubType != "" {
-		request["filter"] = map[string]interface{}{
-			"hubType": hubType,
-		}
-	}
-
-	variables := map[string]interface{}{}
-	if len(request) > 0 {
-		variables["request"] = request
-	}
-
-	data, err := s.graphqlRequest(ctx, query, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	hubs := result["listChaosHub"].([]interface{})
-
-	formattedHubs := make([]map[string]interface{}, len(hubs))
-	for i, hub := range hubs {
-		hubMap := hub.(map[string]interface{})
-
-		formattedHubs[i] = map[string]interface{}{
-			"id":          hubMap["id"],
-			"name":        hubMap["name"],
-			"description": hubMap["description"],
-			"repoUrl":     hubMap["repoURL"],
-			"branch":      hubMap["repoBranch"],
-			"remoteHub":   hubMap["remoteHub"],
-			"type":        hubMap["hubType"],
-			"private":     hubMap["isPrivate"],
-			"available":   hubMap["isAvailable"],
-			"statistics": map[string]interface{}{
-				"totalFaults":      hubMap["totalFaults"],
-				"totalExperiments": hubMap["totalExperiments"],
-			},
-			"tags":        hubMap["tags"],
-			"lastSynced":  hubMap["lastSyncedAt"],
-			"createdBy":   getNestedString(hubMap, "createdBy", "username"),
-			"updatedBy":   getNestedString(hubMap, "updatedBy", "username"),
-			"createdAt":   hubMap["createdAt"],
-			"updatedAt":   hubMap["updatedAt"],
-		}
-	}
-
-	response := map[string]interface{}{
-		"summary":   fmt.Sprintf("Found %d chaos hubs", len(hubs)),
-		"totalHubs": len(hubs),
-		"hubs":      formattedHubs,
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) getChaosFaults(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	hubID := getStringFromArgs(args, "hubId", "")
-	if hubID == "" {
-		return nil, fmt.Errorf("hubId is required")
-	}
-
-	query := `
-		query ListChaosFaults($hubID: ID!, $projectID: ID!) {
-			listChaosFaults(hubID: $hubID, projectID: $projectID) {
-				apiVersion
-				kind
-				metadata {
-					name
-					version
-					annotations {
-						categories
-						vendor
-						repository
-					}
-				}
-				spec {
-					displayName
-					categoryDescription
-					keywords
-					maturity
-					platforms
-					chaosType
-					faults {
-						name
-						displayName
-						description
-					}
-				}
-			}
-		}
-	`
-
-	variables := map[string]interface{}{
-		"hubID": hubID,
-	}
-
-	data, err := s.graphqlRequest(ctx, query, variables)
-	if err != nil {
-		return nil, err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, err
-	}
-
-	faultCategories := result["listChaosFaults"].([]interface{})
-
-	category := getStringFromArgs(args, "category", "")
-	filteredCategories := make([]map[string]interface{}, 0)
-
-	for _, cat := range faultCategories {
-		categoryMap := cat.(map[string]interface{})
-		metadata := categoryMap["metadata"].(map[string]interface{})
-		spec := categoryMap["spec"].(map[string]interface{})
-
-		categoryName := metadata["name"].(string)
-		if category == "" || strings.Contains(strings.ToLower(categoryName), strings.ToLower(category)) {
-			var annotations map[string]interface{}
-			if ann := metadata["annotations"]; ann != nil {
-				annotations = ann.(map[string]interface{})
-			}
-
-			var faults []map[string]interface{}
-			if faultsList := spec["faults"]; faultsList != nil {
-				faultsSlice := faultsList.([]interface{})
-				faults = make([]map[string]interface{}, len(faultsSlice))
-				for i, fault := range faultsSlice {
-					faultMap := fault.(map[string]interface{})
-					faults[i] = map[string]interface{}{
-						"name":        faultMap["name"],
-						"displayName": faultMap["displayName"],
-						"description": faultMap["description"],
-					}
-				}
-			}
-
-			formattedCategory := map[string]interface{}{
-				"name":        categoryName,
-				"displayName": spec["displayName"],
-				"description": spec["categoryDescription"],
-				"version":     metadata["version"],
-				"keywords":    spec["keywords"],
-				"maturity":    spec["maturity"],
-				"platforms":   spec["platforms"],
-				"chaosType":   spec["chaosType"],
-				"faults":      faults,
-			}
-
-			if annotations != nil {
-				formattedCategory["vendor"] = annotations["vendor"]
-				formattedCategory["repository"] = annotations["repository"]
-			}
-
-			filteredCategories = append(filteredCategories, formattedCategory)
-		}
-	}
-
-	response := map[string]interface{}{
-		"hubId":                hubID,
-		"totalFaultCategories": len(filteredCategories),
-		"faultCategories":      filteredCategories,
-	}
-
-	responseJSON, _ := json.MarshalIndent(response, "", "  ")
-
-	return &ToolResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: string(responseJSON),
-			},
-		},
-	}, nil
-}
-
-func (s *LitmusChaosServer) getExperimentStatistics(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
-	statsQuery := `
-		query GetExperimentStats($projectID: ID!) {
-			getExperimentStats(projectID: $projectID) {
-				totalExperiments
-				totalExpCategorizedByResiliencyScore {
-					id
-					count
-				}
-			}
-		}
-	`
-
-	runStatsQuery := `
-		query GetExperimentRunStats($projectID: ID!) {
-			getExperimentRunStats(projectID: $projectID) {
-				totalExperimentRuns
-				totalCompletedExperimentRuns
-				totalTerminatedExperimentRuns
-				totalRunningExperimentRuns
-				totalStoppedExperimentRuns
-				totalErroredExperimentRuns
-			}
-		}
-	`
-
-	infraStatsQuery := `
-		query GetInfraStats($projectID: ID!) {
-			getInfraStats(projectID: $projectID) {
-				totalInfrastructures
-				totalActiveInfrastructure
-				totalInactiveInfrastructures
-				totalConfirmedInfrastructure
-				totalNonConfirmedInfrastructures
-			}
-		}
-	`
-
-	// Execute all queries concurrently
-	expStatsCh := make(chan json.RawMessage, 1)
-	runStatsCh := make(chan json.RawMessage, 1)
-	infraStatsCh := make(chan json.RawMessage, 1)
-	errCh := make(chan error, 3)
-
-	go func() {
-		data, err := s.graphqlRequest(ctx, statsQuery, nil)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		expStatsCh <- data
-	}()
-
-	go func() {
-		data, err := s.graphqlRequest(ctx, runStatsQuery, nil)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		runStatsCh <- data
-	}()
-
-	go func() {
-		data, err := s.graphqlRequest(ctx, infraStatsQuery, nil)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		infraStatsCh <- data
-	}()
-
-	// Collect results
-	var expStatsData, runStatsData, infraStatsData json.RawMessage
-	for i := 0; i < 3; i++ {
-		select {
-		case expStatsData = <-expStatsCh:
-		case runStatsData = <-runStatsCh:
-		case infraStatsData = <-infraStatsCh:
-		case err := <-errCh:
-			return nil, err
-		}
-	}
-
-	// Parse results
-	var expStats, runStats, infraStats map[string]interface{}
-
-	if err := json.Unmarshal(expStatsData, &expStats); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(runStatsData, &runStats); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(infraStatsData, &infraStats); err != nil {
-		return nil, err
-	}
-
-	expStatsResult := expStats["getExperimentStats"].(map[string]interface{})
-	runStatsResult := runStats["getExperimentRunStats"].(map[string]interface{})
-	infraStatsResult := infraStats["getInfraStats"].(map[string]interface{})
-
-	response := map[string]interface{}{
-		"overview": map[string]interface{}{
-			"totalExperiments":      expStatsResult["totalExperiments"],
-			"totalExperimentRuns":   runStatsResult["totalExperimentRuns"],
-			"totalInfrastructures":  infraStatsResult["totalInfrastructures"],
-		},
-		"experimentStatistics": map[string]interface{}{
-			"total": expStatsResult["totalExperiments"],
-			"resiliencyScoreDistribution": expStatsResult["totalExpCategorizedByResiliencyScore"],
-		},package main
+package main
 
 import (
 	"context"
@@ -1887,3 +952,1059 @@ func (s *LitmusChaosServer) listChaosInfrastructures(ctx context.Context, args m
 
 	formattedInfras := make([]map[string]interface{}, len(infras))
 	for i, infra := range infras {
+		infraMap := infra.(map[string]interface{})
+
+		formattedInfras[i] = map[string]interface{}{
+			"id":          infraMap["infraID"],
+			"name":        infraMap["name"],
+			"description": infraMap["description"],
+			"environment": infraMap["environmentID"],
+			"platform":    infraMap["platformName"],
+			"active":      infraMap["isActive"],
+			"confirmed":   infraMap["isInfraConfirmed"],
+			"scope":       infraMap["infraScope"],
+			"namespace":   infraMap["infraNamespace"],
+			"version":     infraMap["version"],
+			"statistics": map[string]interface{}{
+				"experiments": infraMap["noOfExperiments"],
+				"runs":        infraMap["noOfExperimentRuns"],
+			},
+			"tags":         infraMap["tags"],
+			"updateStatus": infraMap["updateStatus"],
+			"createdBy":    getNestedString(infraMap, "createdBy", "username"),
+			"createdAt":    infraMap["createdAt"],
+			"updatedAt":    infraMap["updatedAt"],
+		}
+	}
+
+	response := map[string]interface{}{
+		"summary":              fmt.Sprintf("Found %v chaos infrastructures", listInfras["totalNoOfInfras"]),
+		"totalInfrastructures": listInfras["totalNoOfInfras"],
+		"infrastructures":      formattedInfras,
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) getInfrastructureDetails(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	infraID := getStringFromArgs(args, "infraId", "")
+	if infraID == "" {
+		return nil, fmt.Errorf("infraId is required")
+	}
+
+	query := `
+		query GetInfra($projectID: ID!, $infraID: String!) {
+			getInfra(projectID: $projectID, infraID: $infraID) {
+				projectID
+				infraID
+				name
+				description
+				environmentID
+				platformName
+				isActive
+				isInfraConfirmed
+				infraScope
+				infraNamespace
+				serviceAccount
+				infraNsExists
+				infraSaExists
+				version
+				token
+				noOfExperiments
+				noOfExperimentRuns
+				lastExperimentTimestamp
+				startTime
+				tags
+				createdAt
+				updatedAt
+				createdBy {
+					username
+					email
+				}
+				updatedBy {
+					username
+					email
+				}
+				updateStatus
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"infraID": infraID,
+	}
+
+	data, err := s.graphqlRequest(ctx, query, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	infra := result["getInfra"].(map[string]interface{})
+
+	var manifest interface{} = nil
+	if getBoolFromArgs(args, "includeManifest", false) {
+		manifestQuery := `
+			query GetInfraManifest(
+				$infraID: ID!,
+				$upgrade: Boolean!,
+				$projectID: ID!
+			) {
+				getInfraManifest(
+					infraID: $infraID,
+					upgrade: $upgrade,
+					projectID: $projectID
+				)
+			}
+		`
+
+		manifestVars := map[string]interface{}{
+			"infraID": infraID,
+			"upgrade": false,
+		}
+
+		manifestData, manifestErr := s.graphqlRequest(ctx, manifestQuery, manifestVars)
+		if manifestErr == nil {
+			var manifestResult map[string]interface{}
+			if json.Unmarshal(manifestData, &manifestResult) == nil {
+				manifest = manifestResult["getInfraManifest"]
+			}
+		}
+		if manifest == nil {
+			manifest = "Manifest not available"
+		}
+	}
+
+	response := map[string]interface{}{
+		"infrastructure": map[string]interface{}{
+			"id":          infra["infraID"],
+			"name":        infra["name"],
+			"description": infra["description"],
+			"environment": infra["environmentID"],
+			"platform":    infra["platformName"],
+			"active":      infra["isActive"],
+			"confirmed":   infra["isInfraConfirmed"],
+			"scope":       infra["infraScope"],
+			"namespace":   infra["infraNamespace"],
+			"serviceAccount": infra["serviceAccount"],
+			"namespaceExists": infra["infraNsExists"],
+			"serviceAccountExists": infra["infraSaExists"],
+			"version":     infra["version"],
+			"statistics": map[string]interface{}{
+				"experiments":     infra["noOfExperiments"],
+				"runs":           infra["noOfExperimentRuns"],
+				"lastExperiment": infra["lastExperimentTimestamp"],
+			},
+			"startTime":     infra["startTime"],
+			"tags":          infra["tags"],
+			"updateStatus":  infra["updateStatus"],
+			"createdBy":     getNestedString(infra, "createdBy", "username"),
+			"updatedBy":     getNestedString(infra, "updatedBy", "username"),
+			"createdAt":     infra["createdAt"],
+			"updatedAt":     infra["updatedAt"],
+			"manifest":      manifest,
+		},
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) listEnvironments(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	query := `
+		query ListEnvironments($projectID: ID!, $request: ListEnvironmentRequest) {
+			listEnvironments(projectID: $projectID, request: $request) {
+				totalNoOfEnvironments
+				environments {
+					projectID
+					environmentID
+					name
+					description
+					type
+					tags
+					infraIDs
+					createdAt
+					updatedAt
+					createdBy {
+						username
+					}
+					updatedBy {
+						username
+					}
+				}
+			}
+		}
+	`
+
+	request := map[string]interface{}{}
+
+	if envType := getStringFromArgs(args, "type", ""); envType != "" {
+		request["filter"] = map[string]interface{}{
+			"type": envType,
+		}
+	}
+
+	variables := map[string]interface{}{}
+	if len(request) > 0 {
+		variables["request"] = request
+	}
+
+	data, err := s.graphqlRequest(ctx, query, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	listEnvs := result["listEnvironments"].(map[string]interface{})
+	environments := listEnvs["environments"].([]interface{})
+
+	formattedEnvs := make([]map[string]interface{}, len(environments))
+	for i, env := range environments {
+		envMap := env.(map[string]interface{})
+
+		infraCount := 0
+		var infraIDs []interface{}
+		if infraIDsRaw := envMap["infraIDs"]; infraIDsRaw != nil {
+			infraIDs = infraIDsRaw.([]interface{})
+			infraCount = len(infraIDs)
+		}
+
+		formattedEnvs[i] = map[string]interface{}{
+			"id":                    envMap["environmentID"],
+			"name":                  envMap["name"],
+			"description":           envMap["description"],
+			"type":                  envMap["type"],
+			"tags":                  envMap["tags"],
+			"infrastructureCount":   infraCount,
+			"infrastructureIds":     infraIDs,
+			"createdBy":             getNestedString(envMap, "createdBy", "username"),
+			"updatedBy":             getNestedString(envMap, "updatedBy", "username"),
+			"createdAt":             envMap["createdAt"],
+			"updatedAt":             envMap["updatedAt"],
+		}
+	}
+
+	response := map[string]interface{}{
+		"summary":           fmt.Sprintf("Found %v environments", listEnvs["totalNoOfEnvironments"]),
+		"totalEnvironments": listEnvs["totalNoOfEnvironments"],
+		"environments":      formattedEnvs,
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) createEnvironment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	name := getStringFromArgs(args, "name", "")
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	envType := getStringFromArgs(args, "type", "")
+	if envType == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+
+	mutation := `
+		mutation CreateEnvironment($projectID: ID!, $request: CreateEnvironmentRequest) {
+			createEnvironment(projectID: $projectID, request: $request) {
+				projectID
+				environmentID
+				name
+				description
+				type
+				tags
+				createdAt
+				createdBy {
+					username
+				}
+			}
+		}
+	`
+
+	tags := []string{}
+	if tagsSlice := getSliceFromArgs(args, "tags"); tagsSlice != nil {
+		tags = make([]string, len(tagsSlice))
+		for i, tag := range tagsSlice {
+			tags[i] = fmt.Sprintf("%v", tag)
+		}
+	}
+
+	request := map[string]interface{}{
+		"environmentID": strings.ToLower(strings.ReplaceAll(name, " ", "-")),
+		"name":          name,
+		"description":   getStringFromArgs(args, "description", ""),
+		"type":          envType,
+		"tags":          tags,
+	}
+
+	variables := map[string]interface{}{
+		"request": request,
+	}
+
+	data, err := s.graphqlRequest(ctx, mutation, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	createResult := result["createEnvironment"].(map[string]interface{})
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Environment '%s' created successfully", name),
+		"environment": map[string]interface{}{
+			"id":          createResult["environmentID"],
+			"name":        createResult["name"],
+			"description": createResult["description"],
+			"type":        createResult["type"],
+			"tags":        createResult["tags"],
+			"createdBy":   getNestedString(createResult, "createdBy", "username"),
+			"createdAt":   createResult["createdAt"],
+		},
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) listResilienceProbes(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	query := `
+		query ListProbes(
+			$projectID: ID!,
+			$infrastructureType: InfrastructureType,
+			$probeNames: [ID!],
+			$filter: ProbeFilterInput
+		) {
+			listProbes(
+				projectID: $projectID,
+				infrastructureType: $infrastructureType,
+				probeNames: $probeNames,
+				filter: $filter
+			) {
+				projectID
+				name
+				description
+				type
+				infrastructureType
+				tags
+				referencedBy
+				updatedAt
+				createdAt
+				createdBy {
+					username
+				}
+				updatedBy {
+					username
+				}
+			}
+		}
+	`
+
+	variables := map[string]interface{}{}
+
+	if probeType := getStringFromArgs(args, "type", ""); probeType != "" {
+		variables["filter"] = map[string]interface{}{
+			"type": []string{probeType},
+		}
+	}
+
+	data, err := s.graphqlRequest(ctx, query, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	probes := result["listProbes"].([]interface{})
+
+	formattedProbes := make([]map[string]interface{}, len(probes))
+	for i, probe := range probes {
+		probeMap := probe.(map[string]interface{})
+
+		formattedProbes[i] = map[string]interface{}{
+			"name":               probeMap["name"],
+			"description":        probeMap["description"],
+			"type":               probeMap["type"],
+			"infrastructureType": probeMap["infrastructureType"],
+			"tags":               probeMap["tags"],
+			"referencedBy":       probeMap["referencedBy"],
+			"createdBy":          getNestedString(probeMap, "createdBy", "username"),
+			"updatedBy":          getNestedString(probeMap, "updatedBy", "username"),
+			"createdAt":          probeMap["createdAt"],
+			"updatedAt":          probeMap["updatedAt"],
+		}
+	}
+
+	response := map[string]interface{}{
+		"summary":     fmt.Sprintf("Found %d resilience probes", len(probes)),
+		"totalProbes": len(probes),
+		"probes":      formattedProbes,
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) createResilienceProbe(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	name := getStringFromArgs(args, "name", "")
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	probeType := getStringFromArgs(args, "type", "")
+	if probeType == "" {
+		return nil, fmt.Errorf("type is required")
+	}
+
+	properties := getMapFromArgs(args, "properties")
+	if properties == nil {
+		return nil, fmt.Errorf("properties are required")
+	}
+
+	mutation := `
+		mutation AddProbe($request: ProbeRequest!, $projectID: ID!) {
+			addProbe(request: $request, projectID: $projectID) {
+				projectID
+				name
+				description
+				type
+				infrastructureType
+				tags
+				createdAt
+				createdBy {
+					username
+				}
+			}
+		}
+	`
+
+	tags := []string{}
+	if tagsSlice := getSliceFromArgs(args, "tags"); tagsSlice != nil {
+		tags = make([]string, len(tagsSlice))
+		for i, tag := range tagsSlice {
+			tags[i] = fmt.Sprintf("%v", tag)
+		}
+	}
+
+	request := map[string]interface{}{
+		"name":               name,
+		"description":        getStringFromArgs(args, "description", ""),
+		"type":               probeType,
+		"infrastructureType": "Kubernetes",
+		"tags":               tags,
+	}
+
+	// Add type-specific properties
+	switch probeType {
+	case "httpProbe":
+		method := strings.ToLower(getStringFromArgs(properties, "method", "get"))
+		methodConfig := map[string]interface{}{
+			"criteria":     "==",
+			"responseCode": "200",
+		}
+
+		request["kubernetesHTTPProperties"] = map[string]interface{}{
+			"url": getStringFromArgs(properties, "url", ""),
+			"method": map[string]interface{}{
+				method: methodConfig,
+			},
+			"probeTimeout":        getStringFromArgs(properties, "timeout", "5s"),
+			"interval":            getStringFromArgs(properties, "interval", "2s"),
+			"retry":               3,
+			"attempt":             1,
+			"insecureSkipVerify":  false,
+		}
+
+	case "cmdProbe":
+		request["kubernetesCMDProperties"] = map[string]interface{}{
+			"command":      getStringFromArgs(properties, "command", ""),
+			"probeTimeout": getStringFromArgs(properties, "timeout", "5s"),
+			"interval":     getStringFromArgs(properties, "interval", "2s"),
+			"retry":        3,
+			"attempt":      1,
+			"comparator": map[string]interface{}{
+				"type":     "string",
+				"criteria": "==",
+				"value":    "success",
+			},
+		}
+
+	case "k8sProbe":
+		request["k8sProperties"] = map[string]interface{}{
+			"group":        "",
+			"version":      "v1",
+			"resource":     getStringFromArgs(properties, "resource", ""),
+			"operation":    "present",
+			"probeTimeout": getStringFromArgs(properties, "timeout", "5s"),
+			"interval":     getStringFromArgs(properties, "interval", "2s"),
+			"retry":        3,
+			"attempt":      1,
+		}
+
+	case "promProbe":
+		request["promProperties"] = map[string]interface{}{
+			"endpoint":     getStringFromArgs(properties, "endpoint", ""),
+			"query":        getStringFromArgs(properties, "query", ""),
+			"probeTimeout": getStringFromArgs(properties, "timeout", "5s"),
+			"interval":     getStringFromArgs(properties, "interval", "2s"),
+			"retry":        3,
+			"attempt":      1,
+			"comparator": map[string]interface{}{
+				"type":     "float",
+				"criteria": ">=",
+				"value":    "0",
+			},
+		}
+	}
+
+	variables := map[string]interface{}{
+		"request": request,
+	}
+
+	data, err := s.graphqlRequest(ctx, mutation, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	createResult := result["addProbe"].(map[string]interface{})
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Resilience probe '%s' created successfully", name),
+		"probe": map[string]interface{}{
+			"name":               createResult["name"],
+			"description":        createResult["description"],
+			"type":               createResult["type"],
+			"infrastructureType": createResult["infrastructureType"],
+			"tags":               createResult["tags"],
+			"createdBy":          getNestedString(createResult, "createdBy", "username"),
+			"createdAt":          createResult["createdAt"],
+		},
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) listChaosHubs(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	query := `
+		query ListChaosHub($projectID: ID!, $request: ListChaosHubRequest) {
+			listChaosHub(projectID: $projectID, request: $request) {
+				id
+				name
+				description
+				repoURL
+				repoBranch
+				remoteHub
+				hubType
+				isPrivate
+				isAvailable
+				totalFaults
+				totalExperiments
+				tags
+				lastSyncedAt
+				createdAt
+				updatedAt
+				createdBy {
+					username
+				}
+				updatedBy {
+					username
+				}
+			}
+		}
+	`
+
+	request := map[string]interface{}{}
+
+	if hubType := getStringFromArgs(args, "hubType", ""); hubType != "" {
+		request["filter"] = map[string]interface{}{
+			"hubType": hubType,
+		}
+	}
+
+	variables := map[string]interface{}{}
+	if len(request) > 0 {
+		variables["request"] = request
+	}
+
+	data, err := s.graphqlRequest(ctx, query, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	hubs := result["listChaosHub"].([]interface{})
+
+	formattedHubs := make([]map[string]interface{}, len(hubs))
+	for i, hub := range hubs {
+		hubMap := hub.(map[string]interface{})
+
+		formattedHubs[i] = map[string]interface{}{
+			"id":          hubMap["id"],
+			"name":        hubMap["name"],
+			"description": hubMap["description"],
+			"repoUrl":     hubMap["repoURL"],
+			"branch":      hubMap["repoBranch"],
+			"remoteHub":   hubMap["remoteHub"],
+			"type":        hubMap["hubType"],
+			"private":     hubMap["isPrivate"],
+			"available":   hubMap["isAvailable"],
+			"statistics": map[string]interface{}{
+				"totalFaults":      hubMap["totalFaults"],
+				"totalExperiments": hubMap["totalExperiments"],
+			},
+			"tags":        hubMap["tags"],
+			"lastSynced":  hubMap["lastSyncedAt"],
+			"createdBy":   getNestedString(hubMap, "createdBy", "username"),
+			"updatedBy":   getNestedString(hubMap, "updatedBy", "username"),
+			"createdAt":   hubMap["createdAt"],
+			"updatedAt":   hubMap["updatedAt"],
+		}
+	}
+
+	response := map[string]interface{}{
+		"summary":   fmt.Sprintf("Found %d chaos hubs", len(hubs)),
+		"totalHubs": len(hubs),
+		"hubs":      formattedHubs,
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) getChaosFaults(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	hubID := getStringFromArgs(args, "hubId", "")
+	if hubID == "" {
+		return nil, fmt.Errorf("hubId is required")
+	}
+
+	query := `
+		query ListChaosFaults($hubID: ID!, $projectID: ID!) {
+			listChaosFaults(hubID: $hubID, projectID: $projectID) {
+				apiVersion
+				kind
+				metadata {
+					name
+					version
+					annotations {
+						categories
+						vendor
+						repository
+					}
+				}
+				spec {
+					displayName
+					categoryDescription
+					keywords
+					maturity
+					platforms
+					chaosType
+					faults {
+						name
+						displayName
+						description
+					}
+				}
+			}
+		}
+	`
+
+	variables := map[string]interface{}{
+		"hubID": hubID,
+	}
+
+	data, err := s.graphqlRequest(ctx, query, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	faultCategories := result["listChaosFaults"].([]interface{})
+
+	category := getStringFromArgs(args, "category", "")
+	filteredCategories := make([]map[string]interface{}, 0)
+
+	for _, cat := range faultCategories {
+		categoryMap := cat.(map[string]interface{})
+		metadata := categoryMap["metadata"].(map[string]interface{})
+		spec := categoryMap["spec"].(map[string]interface{})
+
+		categoryName := metadata["name"].(string)
+		if category == "" || strings.Contains(strings.ToLower(categoryName), strings.ToLower(category)) {
+			var annotations map[string]interface{}
+			if ann := metadata["annotations"]; ann != nil {
+				annotations = ann.(map[string]interface{})
+			}
+
+			var faults []map[string]interface{}
+			if faultsList := spec["faults"]; faultsList != nil {
+				faultsSlice := faultsList.([]interface{})
+				faults = make([]map[string]interface{}, len(faultsSlice))
+				for i, fault := range faultsSlice {
+					faultMap := fault.(map[string]interface{})
+					faults[i] = map[string]interface{}{
+						"name":        faultMap["name"],
+						"displayName": faultMap["displayName"],
+						"description": faultMap["description"],
+					}
+				}
+			}
+
+			formattedCategory := map[string]interface{}{
+				"name":        categoryName,
+				"displayName": spec["displayName"],
+				"description": spec["categoryDescription"],
+				"version":     metadata["version"],
+				"keywords":    spec["keywords"],
+				"maturity":    spec["maturity"],
+				"platforms":   spec["platforms"],
+				"chaosType":   spec["chaosType"],
+				"faults":      faults,
+			}
+
+			if annotations != nil {
+				formattedCategory["vendor"] = annotations["vendor"]
+				formattedCategory["repository"] = annotations["repository"]
+			}
+
+			filteredCategories = append(filteredCategories, formattedCategory)
+		}
+	}
+
+	response := map[string]interface{}{
+		"hubId":                hubID,
+		"totalFaultCategories": len(filteredCategories),
+		"faultCategories":      filteredCategories,
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) getExperimentStatistics(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	statsQuery := `
+		query GetExperimentStats($projectID: ID!) {
+			getExperimentStats(projectID: $projectID) {
+				totalExperiments
+				totalExpCategorizedByResiliencyScore {
+					id
+					count
+				}
+			}
+		}
+	`
+
+	runStatsQuery := `
+		query GetExperimentRunStats($projectID: ID!) {
+			getExperimentRunStats(projectID: $projectID) {
+				totalExperimentRuns
+				totalCompletedExperimentRuns
+				totalTerminatedExperimentRuns
+				totalRunningExperimentRuns
+				totalStoppedExperimentRuns
+				totalErroredExperimentRuns
+			}
+		}
+	`
+
+	infraStatsQuery := `
+		query GetInfraStats($projectID: ID!) {
+			getInfraStats(projectID: $projectID) {
+				totalInfrastructures
+				totalActiveInfrastructure
+				totalInactiveInfrastructures
+				totalConfirmedInfrastructure
+				totalNonConfirmedInfrastructures
+			}
+		}
+	`
+
+	// Execute all queries concurrently
+	expStatsCh := make(chan json.RawMessage, 1)
+	runStatsCh := make(chan json.RawMessage, 1)
+	infraStatsCh := make(chan json.RawMessage, 1)
+	errCh := make(chan error, 3)
+
+	go func() {
+		data, err := s.graphqlRequest(ctx, statsQuery, nil)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		expStatsCh <- data
+	}()
+
+	go func() {
+		data, err := s.graphqlRequest(ctx, runStatsQuery, nil)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		runStatsCh <- data
+	}()
+
+	go func() {
+		data, err := s.graphqlRequest(ctx, infraStatsQuery, nil)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		infraStatsCh <- data
+	}()
+
+	// Collect results
+	var expStatsData, runStatsData, infraStatsData json.RawMessage
+	for i := 0; i < 3; i++ {
+		select {
+		case expStatsData = <-expStatsCh:
+		case runStatsData = <-runStatsCh:
+		case infraStatsData = <-infraStatsCh:
+		case err := <-errCh:
+			return nil, err
+		}
+	}
+
+	// Parse results
+	var expStats, runStats, infraStats map[string]interface{}
+
+	if err := json.Unmarshal(expStatsData, &expStats); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(runStatsData, &runStats); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(infraStatsData, &infraStats); err != nil {
+		return nil, err
+	}
+
+	expStatsResult := expStats["getExperimentStats"].(map[string]interface{})
+	runStatsResult := runStats["getExperimentRunStats"].(map[string]interface{})
+	infraStatsResult := infraStats["getInfraStats"].(map[string]interface{})
+
+	response := map[string]interface{}{
+		"overview": map[string]interface{}{
+			"totalExperiments":      expStatsResult["totalExperiments"],
+			"totalExperimentRuns":   runStatsResult["totalExperimentRuns"],
+			"totalInfrastructures":  infraStatsResult["totalInfrastructures"],
+		},
+		"experimentStatistics": map[string]interface{}{
+			"total": expStatsResult["totalExperiments"],
+			"resiliencyScoreDistribution": expStatsResult["totalExpCategorizedByResiliencyScore"],
+		},
+		"experimentRunStatistics": map[string]interface{}{
+			"total":      runStatsResult["totalExperimentRuns"],
+			"completed":  runStatsResult["totalCompletedExperimentRuns"],
+			"terminated": runStatsResult["totalTerminatedExperimentRuns"],
+			"running":    runStatsResult["totalRunningExperimentRuns"],
+			"stopped":    runStatsResult["totalStoppedExperimentRuns"],
+			"errored":    runStatsResult["totalErroredExperimentRuns"],
+		},
+		"infrastructureStatistics": map[string]interface{}{
+			"total":       infraStatsResult["totalInfrastructures"],
+			"active":      infraStatsResult["totalActiveInfrastructure"],
+			"inactive":    infraStatsResult["totalInactiveInfrastructures"],
+			"confirmed":   infraStatsResult["totalConfirmedInfrastructure"],
+			"unconfirmed": infraStatsResult["totalNonConfirmedInfrastructures"],
+		},
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
+
+func (s *LitmusChaosServer) registerChaosInfrastructure(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
+	name := getStringFromArgs(args, "name", "")
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+
+	environmentID := getStringFromArgs(args, "environmentId", s.config.DefaultEnvironmentID)
+	if environmentID == "" {
+		return nil, fmt.Errorf("environmentId is required")
+	}
+
+	infraScope := getStringFromArgs(args, "infraScope", "")
+	if infraScope == "" {
+		return nil, fmt.Errorf("infraScope is required")
+	}
+
+	mutation := `
+		mutation RegisterInfra($projectID: ID!, $request: RegisterInfraRequest!) {
+			registerInfra(projectID: $projectID, request: $request) {
+				token
+				infraID
+				name
+				manifest
+			}
+		}
+	`
+
+	tags := []string{}
+	if tagsSlice := getSliceFromArgs(args, "tags"); tagsSlice != nil {
+		tags = make([]string, len(tagsSlice))
+		for i, tag := range tagsSlice {
+			tags[i] = fmt.Sprintf("%v", tag)
+		}
+	}
+
+	request := map[string]interface{}{
+		"name":                name,
+		"description":         getStringFromArgs(args, "description", "Registered via MCP Server"),
+		"environmentID":       environmentID,
+		"infrastructureType":  "Kubernetes",
+		"platformName":        getStringFromArgs(args, "platformName", "Generic Kubernetes"),
+		"infraScope":          infraScope,
+		"infraNamespace":      getStringFromArgs(args, "infraNamespace", "litmus"),
+		"serviceAccount":      "litmus-admin",
+		"infraNsExists":       false,
+		"infraSaExists":       false,
+		"skipSsl":             false,
+		"tags":                tags,
+	}
+
+	variables := map[string]interface{}{
+		"request": request,
+	}
+
+	data, err := s.graphqlRequest(ctx, mutation, variables)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+
+	registerResult := result["registerInfra"].(map[string]interface{})
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Chaos infrastructure '%s' registered successfully", name),
+		"infrastructure": map[string]interface{}{
+			"id":    registerResult["infraID"],
+			"name":  registerResult["name"],
+			"token": registerResult["token"],
+			"installationInstructions": map[string]interface{}{
+				"step1":    "Apply the following manifest to your Kubernetes cluster:",
+				"manifest": registerResult["manifest"],
+				"step2":    "Wait for the infrastructure to be confirmed in the Chaos Center",
+				"step3":    "Start creating and running chaos experiments",
+			},
+		},
+	}
+
+	responseJSON, _ := json.MarshalIndent(response, "", "  ")
+
+	return &ToolResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: string(responseJSON),
+			},
+		},
+	}, nil
+}
