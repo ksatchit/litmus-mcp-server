@@ -186,8 +186,6 @@ make build-all
 .
 ├── main.go              # Main server implementation
 ├── handlers.go          # Tool implementation handlers (part 1)
-├── handlers_part2.go    # Tool implementation handlers (part 2)
-├── handlers_part3.go    # Tool implementation handlers (part 3)
 ├── go.mod              # Go module definition
 ├── go.sum              # Go module checksums
 ├── Makefile            # Build automation
