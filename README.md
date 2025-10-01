@@ -400,10 +400,6 @@ curl -X POST http://your-chaos-center:8080/query \
 - Update documentation for API changes
 - Use meaningful commit messages
 
-## License
-
-MIT License - see LICENSE file for details.
-
 ## Support
 
 - **Documentation**: [LitmusChaos Docs](https://docs.litmuschaos.io/)
