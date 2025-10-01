@@ -1,4 +1,4 @@
-# LitmusChaos MCP Server (Go Implementation)
+# LitmusChaos MCP Server
 
 A comprehensive Model Context Protocol (MCP) server for LitmusChaos 3.x, built in Go, enabling AI assistants like Claude to interact with your chaos engineering platform. This server provides a complete interface for managing chaos experiments, infrastructures, environments, and resilience probes through natural language interactions.
 
