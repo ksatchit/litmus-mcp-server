@@ -407,20 +407,8 @@ MIT License - see LICENSE file for details.
 ## Support
 
 - **Documentation**: [LitmusChaos Docs](https://docs.litmuschaos.io/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/litmuschaos-mcp-server-go/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/litmuschaos-mcp-server-go/discussions)
+- **Issues**: [GitHub Issues](https://github.com/ksatchit/litmuschaos-mcp-server-go/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/ksatchit/litmuschaos-mcp-server-go/discussions)
 - **Community**: [LitmusChaos Slack](https://slack.litmuschaos.io/)
 
-## Changelog
 
-### v3.16.0
-- Initial Go implementation with full LitmusChaos 3.x support
-- Complete experiment lifecycle management  
-- Infrastructure registration and monitoring
-- Resilience probe integration
-- Comprehensive statistics and analytics
-- Environment-based organization
-- ChaosHub integration
-- High-performance concurrent operations
-- Cross-platform native binaries
-- Docker containerization support
