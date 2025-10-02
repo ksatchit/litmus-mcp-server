@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
+	//"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -207,40 +207,40 @@ func (s *LitmusChaosServer) getTools() []Tool {
 				"required": []string{"experimentId"},
 			},
 		},
-		{
-			Name:        "create_chaos_experiment",
-			Description: "Create a new chaos experiment using Chaos Studio",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"name":        map[string]interface{}{"type": "string", "description": "Experiment name"},
-					"description": map[string]interface{}{"type": "string", "description": "Experiment description"},
-					"infraId":     map[string]interface{}{"type": "string", "description": "Infrastructure ID to run the experiment"},
-					"faults": map[string]interface{}{
-						"type": "array",
-						"items": map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"name":       map[string]interface{}{"type": "string", "description": "Fault name (e.g., pod-delete, network-loss)"},
-								"weight":     map[string]interface{}{"type": "number", "minimum": 1, "maximum": 10, "description": "Fault weight for scoring"},
-								"targetApp":  map[string]interface{}{"type": "string", "description": "Target application selector"},
-								"duration":   map[string]interface{}{"type": "string", "description": "Fault duration (e.g., 60s, 5m)"},
-								"parameters": map[string]interface{}{"type": "object", "description": "Fault-specific parameters"},
-							},
-							"required": []string{"name", "targetApp"},
-						},
-					},
-					"schedule": map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"cronExpression": map[string]interface{}{"type": "string", "description": "Cron expression for scheduling"},
-						},
-					},
-					"tags": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}, "description": "Experiment tags"},
-				},
-				"required": []string{"name", "infraId", "faults"},
-			},
-		},
+		//{
+			//Name:        "create_chaos_experiment",
+			//Description: "Create a new chaos experiment using Chaos Studio",
+			//InputSchema: map[string]interface{}{
+				//"type": "object",
+				//"properties": map[string]interface{}{
+					//"name":        map[string]interface{}{"type": "string", "description": "Experiment name"},
+					//"description": map[string]interface{}{"type": "string", "description": "Experiment description"},
+					//"infraId":     map[string]interface{}{"type": "string", "description": "Infrastructure ID to run the experiment"},
+					//"faults": map[string]interface{}{
+						//"type": "array",
+						//"items": map[string]interface{}{
+							//"type": "object",
+							//"properties": map[string]interface{}{
+								//"name":       map[string]interface{}{"type": "string", "description": "Fault name (e.g., pod-delete, network-loss)"},
+								//"weight":     map[string]interface{}{"type": "number", "minimum": 1, "maximum": 10, "description": "Fault weight for scoring"},
+								//"targetApp":  map[string]interface{}{"type": "string", "description": "Target application selector"},
+								//"duration":   map[string]interface{}{"type": "string", "description": "Fault duration (e.g., 60s, 5m)"},
+								//"parameters": map[string]interface{}{"type": "object", "description": "Fault-specific parameters"},
+							//},
+							//"required": []string{"name", "targetApp"},
+						//},
+					//},
+					//"schedule": map[string]interface{}{
+						//"type": "object",
+						//"properties": map[string]interface{}{
+							//"cronExpression": map[string]interface{}{"type": "string", "description": "Cron expression for scheduling"},
+						//},
+					//},
+					//"tags": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}, "description": "Experiment tags"},
+				//},
+				//"required": []string{"name", "infraId", "faults"},
+			//},
+		//},
 		{
 			Name:        "run_chaos_experiment",
 			Description: "Execute a chaos experiment immediately",
