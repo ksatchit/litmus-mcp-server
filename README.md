@@ -202,7 +202,6 @@ The server provides 17 comprehensive tools for chaos engineering operations:
 ### Experiment Management
 - `list_chaos_experiments` - List all chaos experiments with filtering
 - `get_chaos_experiment` - Get detailed experiment information
-- `create_chaos_experiment` - Create new chaos experiments with custom faults
 - `run_chaos_experiment` - Execute experiments immediately
 - `stop_chaos_experiment` - Stop running experiments
 
