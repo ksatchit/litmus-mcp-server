@@ -340,6 +340,7 @@ func (s *LitmusChaosServer) getChaosExperiment(ctx context.Context, args map[str
 	}, nil
 }
 
+// TODO: not being used in the main.go as a valid tool until further refinement for manifest accuracy
 func (s *LitmusChaosServer) createChaosExperiment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	name := getStringFromArgs(args, "name", "")
 	if name == "" {
