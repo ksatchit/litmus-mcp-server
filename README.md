@@ -274,72 +274,6 @@ The Go implementation provides several performance advantages:
 - **Error Handling**: Comprehensive error management and user feedback
 - **JSON Processing**: High-performance JSON marshaling/unmarshaling
 
-### Design Principles
-
-- **Simplicity**: Clean, readable Go code following idiomatic patterns
-- **Performance**: Optimized for speed and minimal resource usage
-- **Reliability**: Comprehensive error handling and graceful failures
-- **Maintainability**: Well-structured code with clear separation of concerns
-
-## Building and Deployment
-
-### Local Development
-
-```bash
-# Quick start
-make dev
-
-# Manual build and run
-make build
-./bin/litmuschaos-mcp-server
-```
-
-### Production Deployment
-
-```bash
-# Build optimized release binary
-make build-release
-
-# Build for multiple platforms
-make build-all
-
-# Build Docker image
-make docker-build
-```
-
-### Cross-Compilation
-
-```bash
-# Build for Linux
-make build-linux
-
-# Build for macOS (Intel and Apple Silicon)
-make build-darwin
-
-# Build for Windows
-make build-windows
-
-# Build for all platforms
-make build-all
-```
-
-## Error Handling
-
-The server includes comprehensive error handling for:
-
-- **Authentication Failures**: Invalid tokens or project IDs
-- **Network Issues**: Connection timeouts and retries
-- **GraphQL Errors**: API-specific error messages with context
-- **Validation Errors**: Input parameter validation with detailed feedback
-- **Infrastructure Issues**: Connectivity and status problems
-
-## Security Considerations
-
-- **Access Tokens**: Store securely and rotate regularly
-- **Network Security**: Use HTTPS endpoints in production
-- **Least Privilege**: Use project-specific tokens with minimal permissions
-- **Container Security**: Runs as non-root user in minimal scratch image
-- **Input Validation**: All parameters validated before processing
 
 ## Troubleshooting
 
@@ -402,8 +336,8 @@ curl -X POST http://your-chaos-center:8080/query \
 ## Support
 
 - **Documentation**: [LitmusChaos Docs](https://docs.litmuschaos.io/)
-- **Issues**: [GitHub Issues](https://github.com/ksatchit/litmuschaos-mcp-server-go/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ksatchit/litmuschaos-mcp-server-go/discussions)
+- **Issues**: [GitHub Issues](https://github.com/litmuschaos/litmus-mcp-server-go/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/litmuschaos/litmus-mcp-server-go/discussions)
 - **Community**: [LitmusChaos Slack](https://slack.litmuschaos.io/)
 
 
