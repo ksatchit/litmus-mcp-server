@@ -8,10 +8,9 @@ A comprehensive Model Context Protocol (MCP) server for LitmusChaos 3.x, built i
 - List and describe chaos experiments
 - Execute experiments on-demand or via schedules
 - Stop running experiments with granular control
-- Support for custom fault configurations and weightings
 
 ### 🏗️ **Infrastructure Operations**
-- Register and manage chaos infrastructures (formerly agents/delegates)
+- List and Get chaos infrastructure Details (formerly agents/chaos delegates)
 - Monitor infrastructure health and status
 - Generate installation manifests
 - Support for both namespace and cluster-scoped deployments
