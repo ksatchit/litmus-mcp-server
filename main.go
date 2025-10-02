@@ -467,8 +467,8 @@ func (s *LitmusChaosServer) handleTool(ctx context.Context, toolName string, arg
 		return s.listChaosExperiments(ctx, args)
 	case "get_chaos_experiment":
 		return s.getChaosExperiment(ctx, args)
-	case "create_chaos_experiment":
-		return s.createChaosExperiment(ctx, args)
+	//case "create_chaos_experiment":
+		//return s.createChaosExperiment(ctx, args)
 	case "run_chaos_experiment":
 		return s.runChaosExperiment(ctx, args)
 	case "stop_chaos_experiment":
