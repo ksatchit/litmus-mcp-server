@@ -1,3 +1,4 @@
+# TODO: Add into Github Workflow
 .PHONY: build clean run test lint fmt vet install dev help
 
 # Default target
