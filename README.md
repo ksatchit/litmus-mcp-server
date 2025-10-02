@@ -5,7 +5,7 @@ A comprehensive Model Context Protocol (MCP) server for LitmusChaos 3.x, built i
 ## Features
 
 ### 🧪 **Chaos Experiment Management**
-- List, create, and manage chaos experiments
+- List and describe chaos experiments
 - Execute experiments on-demand or via schedules
 - Stop running experiments with granular control
 - Support for custom fault configurations and weightings
