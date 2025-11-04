@@ -8,6 +8,7 @@ import (
 )
 
 // Utility functions for type conversion
+// getStringFromArgs returns the string value for the given key in args, or defaultValue if the key is missing or not a string.
 func getStringFromArgs(args map[string]interface{}, key string, defaultValue string) string {
 	if val, ok := args[key]; ok {
 		if str, ok := val.(string); ok {
@@ -17,6 +18,7 @@ func getStringFromArgs(args map[string]interface{}, key string, defaultValue str
 	return defaultValue
 }
 
+// getIntFromArgs returns the int value for the given key in args, or defaultValue if the key is missing or not a number.
 func getIntFromArgs(args map[string]interface{}, key string, defaultValue int) int {
 	if val, ok := args[key]; ok {
 		if num, ok := val.(float64); ok {
@@ -26,6 +28,7 @@ func getIntFromArgs(args map[string]interface{}, key string, defaultValue int) i
 	return defaultValue
 }
 
+// getBoolFromArgs returns the bool value for the given key in args, or defaultValue if the key is missing or not a boolean.
 func getBoolFromArgs(args map[string]interface{}, key string, defaultValue bool) bool {
 	if val, ok := args[key]; ok {
 		if b, ok := val.(bool); ok {
@@ -35,6 +38,7 @@ func getBoolFromArgs(args map[string]interface{}, key string, defaultValue bool)
 	return defaultValue
 }
 
+// getMapFromArgs returns the map value for the given key in args, or nil if the key is missing or not a map.
 func getMapFromArgs(args map[string]interface{}, key string) map[string]interface{} {
 	if val, ok := args[key]; ok {
 		if m, ok := val.(map[string]interface{}); ok {
@@ -44,6 +48,7 @@ func getMapFromArgs(args map[string]interface{}, key string) map[string]interfac
 	return nil
 }
 
+// getSliceFromArgs returns the slice value for the given key in args, or nil if the key is missing or not a slice.
 func getSliceFromArgs(args map[string]interface{}, key string) []interface{} {
 	if val, ok := args[key]; ok {
 		if s, ok := val.([]interface{}); ok {
@@ -54,6 +59,7 @@ func getSliceFromArgs(args map[string]interface{}, key string) []interface{} {
 }
 
 // Utility function to get nested string values
+// getNestedString traverses the nested maps using keys and returns the terminal string value, or an empty string if not found.
 func getNestedString(obj map[string]interface{}, keys ...string) string {
 	current := obj
 	for i, key := range keys {
@@ -76,6 +82,7 @@ func getNestedString(obj map[string]interface{}, keys ...string) string {
 
 // Tool handler implementations
 
+// listChaosExperiments queries ChaosCenter for experiments with optional pagination and filters and returns a formatted summary.
 func (s *LitmusChaosServer) listChaosExperiments(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	query := `
 		query ListExperiment($projectID: ID!, $request: ListExperimentRequest!) {
@@ -210,6 +217,7 @@ func (s *LitmusChaosServer) listChaosExperiments(ctx context.Context, args map[s
 	}, nil
 }
 
+// getChaosExperiment fetches detailed information for a specific chaos experiment identified by experimentId.
 func (s *LitmusChaosServer) getChaosExperiment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	query := `
 		query GetExperiment($projectID: ID!, $experimentID: String!) {
@@ -341,6 +349,7 @@ func (s *LitmusChaosServer) getChaosExperiment(ctx context.Context, args map[str
 }
 
 // TODO: not being used in the main.go as a valid tool until further refinement for manifest accuracy
+// createChaosExperiment creates a new chaos experiment manifest from provided faults and submits it to ChaosCenter.
 func (s *LitmusChaosServer) createChaosExperiment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	name := getStringFromArgs(args, "name", "")
 	if name == "" {
@@ -527,6 +536,7 @@ func (s *LitmusChaosServer) createChaosExperiment(ctx context.Context, args map[
 	}, nil
 }
 
+// runChaosExperiment triggers execution of a chaos experiment by its experimentId.
 func (s *LitmusChaosServer) runChaosExperiment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	experimentID := getStringFromArgs(args, "experimentId", "")
 	if experimentID == "" {
@@ -576,6 +586,7 @@ func (s *LitmusChaosServer) runChaosExperiment(ctx context.Context, args map[str
 	}, nil
 }
 
+// stopChaosExperiment stops an ongoing chaos experiment or a specific experiment run if experimentRunId is provided.
 func (s *LitmusChaosServer) stopChaosExperiment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	experimentID := getStringFromArgs(args, "experimentId", "")
 	if experimentID == "" {
@@ -641,6 +652,7 @@ func (s *LitmusChaosServer) stopChaosExperiment(ctx context.Context, args map[st
 	}, nil
 }
 
+// listExperimentRuns lists experiment runs with optional filtering by experimentId and status.
 func (s *LitmusChaosServer) listExperimentRuns(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	query := `
 		query ListExperimentRun($projectID: ID!, $request: ListExperimentRunRequest!) {
@@ -763,6 +775,7 @@ func (s *LitmusChaosServer) listExperimentRuns(ctx context.Context, args map[str
 	}, nil
 }
 
+// getExperimentRunDetails fetches details for a specific experiment run identified by experimentRunId.
 func (s *LitmusChaosServer) getExperimentRunDetails(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	experimentRunID := getStringFromArgs(args, "experimentRunId", "")
 	if experimentRunID == "" {
@@ -890,6 +903,7 @@ func (s *LitmusChaosServer) getExperimentRunDetails(ctx context.Context, args ma
 	}, nil
 }
 
+// listChaosInfrastructures lists chaos infrastructures with optional filtering by environmentId and active status.
 func (s *LitmusChaosServer) listChaosInfrastructures(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	query := `
 		query ListInfras($projectID: ID!, $request: ListInfraRequest) {
@@ -996,6 +1010,7 @@ func (s *LitmusChaosServer) listChaosInfrastructures(ctx context.Context, args m
 	}, nil
 }
 
+// getInfrastructureDetails returns detailed information for the given infraId, and optionally includes the install manifest.
 func (s *LitmusChaosServer) getInfrastructureDetails(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	infraID := getStringFromArgs(args, "infraId", "")
 	if infraID == "" {
@@ -1132,6 +1147,7 @@ func (s *LitmusChaosServer) getInfrastructureDetails(ctx context.Context, args m
 	}, nil
 }
 
+// listEnvironments lists environments with optional filtering by type.
 func (s *LitmusChaosServer) listEnvironments(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	query := `
 		query ListEnvironments($projectID: ID!, $request: ListEnvironmentRequest) {
@@ -1228,6 +1244,7 @@ func (s *LitmusChaosServer) listEnvironments(ctx context.Context, args map[strin
 	}, nil
 }
 
+// createEnvironment creates a new environment with the given name and type, and optional description and tags.
 func (s *LitmusChaosServer) createEnvironment(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	name := getStringFromArgs(args, "name", "")
 	if name == "" {
@@ -1314,6 +1331,7 @@ func (s *LitmusChaosServer) createEnvironment(ctx context.Context, args map[stri
 	}, nil
 }
 
+// listResilienceProbes lists available resilience probes with optional filtering by probe type.
 func (s *LitmusChaosServer) listResilienceProbes(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	query := `
 		query ListProbes(
@@ -1403,6 +1421,7 @@ func (s *LitmusChaosServer) listResilienceProbes(ctx context.Context, args map[s
 	}, nil
 }
 
+// createResilienceProbe creates a new resilience probe of the specified type using provided properties and optional tags.
 func (s *LitmusChaosServer) createResilienceProbe(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	name := getStringFromArgs(args, "name", "")
 	if name == "" {
@@ -1557,6 +1576,7 @@ func (s *LitmusChaosServer) createResilienceProbe(ctx context.Context, args map[
 	}, nil
 }
 
+// listChaosHubs lists configured chaos hubs with optional filtering by hubType.
 func (s *LitmusChaosServer) listChaosHubs(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	query := `
 		query ListChaosHub($projectID: ID!, $request: ListChaosHubRequest) {
@@ -1656,6 +1676,7 @@ func (s *LitmusChaosServer) listChaosHubs(ctx context.Context, args map[string]i
 	}, nil
 }
 
+// getChaosFaults fetches available fault categories and faults for a given chaos hub identified by hubId, with optional category filter.
 func (s *LitmusChaosServer) getChaosFaults(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	hubID := getStringFromArgs(args, "hubId", "")
 	if hubID == "" {
@@ -1777,6 +1798,7 @@ func (s *LitmusChaosServer) getChaosFaults(ctx context.Context, args map[string]
 	}, nil
 }
 
+// getExperimentStatistics retrieves high-level statistics across experiments, experiment runs, and infrastructures.
 func (s *LitmusChaosServer) getExperimentStatistics(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	statsQuery := `
 		query GetExperimentStats($projectID: ID!) {
@@ -1916,6 +1938,7 @@ func (s *LitmusChaosServer) getExperimentStatistics(ctx context.Context, args ma
 	}, nil
 }
 
+// registerChaosInfrastructure registers a new chaos infrastructure and returns its ID, token, and installation manifest.
 func (s *LitmusChaosServer) registerChaosInfrastructure(ctx context.Context, args map[string]interface{}) (*ToolResult, error) {
 	name := getStringFromArgs(args, "name", "")
 	if name == "" {
